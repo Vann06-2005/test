@@ -8,7 +8,7 @@ import java.sql.SQLException;
 import models.User;
 
 public class UserController {
-    
+    //Singleton Pattern
     private static UserController instance;
 
     private UserController() {

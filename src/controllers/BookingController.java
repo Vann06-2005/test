@@ -77,12 +77,27 @@ public class BookingController {
         }
     }
 
-    public List<String> getTakenSeats(Long scheduleId) {
-        List<String> takenSeats = new ArrayList<>();
-        String sql = "SELECT seat_number FROM bookings WHERE schedule_id = ? AND status = 'CONFIRMED'";
-        // ... run query and return list ...
-        return takenSeats;
+   public List<String> getTakenSeats(Long scheduleId) {
+    List<String> takenSeats = new ArrayList<>();
+    String sql = "SELECT seat_number FROM bookings WHERE schedule_id = ? AND status = 'CONFIRMED'";
+
+    try (Connection conn = DatabaseConnection.getConnection();
+         PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+        stmt.setLong(1, scheduleId);
+        try (ResultSet rs = stmt.executeQuery()) {
+            while (rs.next()) {
+                takenSeats.add(rs.getString("seat_number"));
+            }
+        }
+
+    } catch (SQLException e) {
+        e.printStackTrace();
     }
+
+    return takenSeats;
+}
+
 
     public List<Booking> getBookingsForUser(Long userId) {
         List<Booking> userBookings = new ArrayList<>();

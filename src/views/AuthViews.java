@@ -131,8 +131,6 @@ public class AuthViews {
             }.execute();
         }
     }
-
-    // --- REGISTER PANEL ---
     // --- REGISTER PANEL (Mobile Style) ---
     public static class RegisterPanel extends JPanel {
         private MainApp mainApp;
@@ -204,7 +202,7 @@ public class AuthViews {
             backBtn = new JButton("Already have an account? Login");
             backBtn.setBorderPainted(false);
             backBtn.setContentAreaFilled(false);
-            backBtn.setForeground(Color.GRAY); // Gray link looks cleaner for "Back"
+            backBtn.setForeground(Color.BLUE); // Blue link looks cleaner for "Back"
             backBtn.setFont(new Font("SansSerif", Font.PLAIN, 14));
 
             gbc.gridy = 7;

@@ -6,9 +6,9 @@ import java.sql.SQLException;
 
 public class DatabaseConnection {
     // Update these with your specific database details
-    private static final String URL = "jdbc:postgresql://localhost:5432/BusDB";
+    private static final String URL = "jdbc:postgresql://localhost:5432/postgres";
     private static final String USER = "postgres";
-    private static final String PASSWORD = "newpassword";
+    private static final String PASSWORD = "kitty";
 
     public static Connection getConnection() {
         Connection conn = null;

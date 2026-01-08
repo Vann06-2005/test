@@ -9,16 +9,20 @@ import models.User;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 public class CustomerViews extends JPanel {
     private MainApp mainApp;
     private User currentUser;
     
     // UI Components
-    private JTextField fromField, toField;
+    private JComboBox<String> fromCombo, toCombo; // Dropdowns for user-friendly city selection
     private JPanel resultsListPanel; // Container for the cards
     private JButton searchBtn, historyBtn;
+    private static final String SELECT_CITY = "Select City";
 
     public CustomerViews(MainApp app, User user) {
         this.mainApp = app;
@@ -49,13 +53,13 @@ public class CustomerViews extends JPanel {
 
         // 2. Search Inputs (From, To)
         topPanel.add(createInputLabel("From City:"));
-        fromField = createStyledField();
-        topPanel.add(fromField);
+        fromCombo = createStyledComboBox();
+        topPanel.add(fromCombo);
         topPanel.add(Box.createVerticalStrut(10));
 
         topPanel.add(createInputLabel("To Destination:"));
-        toField = createStyledField();
-        topPanel.add(toField);
+        toCombo = createStyledComboBox();
+        topPanel.add(toCombo);
         topPanel.add(Box.createVerticalStrut(20));
 
         // 3. Action Buttons (Search & History)
@@ -94,15 +98,17 @@ public class CustomerViews extends JPanel {
         // --- ACTIONS ---
         searchBtn.addActionListener(e -> performSearch());
         historyBtn.addActionListener(e -> showHistoryPopup());
+
+        loadCityOptions(); // Populate dropdowns from available schedules
     }
 
     // Helper to style inputs
-    private JTextField createStyledField() {
-        JTextField f = new JTextField();
-        f.setPreferredSize(new Dimension(999, 40));
-        f.setMaximumSize(new Dimension(999, 40)); // Prevent horizontal shrinking
-        f.setFont(new Font("SansSerif", Font.PLAIN, 16));
-        return f;
+    private JComboBox<String> createStyledComboBox() {
+        JComboBox<String> combo = new JComboBox<>(new String[] { SELECT_CITY });
+        combo.setPreferredSize(new Dimension(999, 40));
+        combo.setMaximumSize(new Dimension(999, 40)); // Prevent horizontal shrinking
+        combo.setFont(new Font("SansSerif", Font.PLAIN, 16));
+        return combo;
     }
     
     private JLabel createInputLabel(String text) {
@@ -113,10 +119,48 @@ public class CustomerViews extends JPanel {
         return l;
     }
 
+    // Load unique cities to keep dropdown options consistent with the database
+    private void loadCityOptions() {
+        new SwingWorker<String[], Void>() {
+            @Override
+            protected String[] doInBackground() {
+                List<Schedule> schedules = ScheduleController.getInstance().getAllSchedules();
+                Set<String> cities = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+                for (Schedule schedule : schedules) {
+                    cities.add(schedule.getRoute().getSourceCity());
+                    cities.add(schedule.getRoute().getDestinationCity());
+                }
+
+                ArrayList<String> cityList = new ArrayList<>();
+                cityList.add(SELECT_CITY);
+                cityList.addAll(cities);
+                return cityList.toArray(new String[0]);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    String[] cities = get();
+                    fromCombo.setModel(new DefaultComboBoxModel<>(cities));
+                    toCombo.setModel(new DefaultComboBoxModel<>(cities));
+                    fromCombo.setSelectedIndex(0);
+                    toCombo.setSelectedIndex(0);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }.execute();
+    }
+
     // --- LOGIC: SEARCH & POPULATE CARDS ---
     private void performSearch() {
-        String from = fromField.getText();
-        String to = toField.getText();
+        String from = (String) fromCombo.getSelectedItem();
+        String to = (String) toCombo.getSelectedItem();
+
+        if (from == null || to == null || SELECT_CITY.equals(from) || SELECT_CITY.equals(to)) {
+            JOptionPane.showMessageDialog(this, "Please select both departure and destination.");
+            return;
+        }
         
         resultsListPanel.removeAll(); // Clear old results
         resultsListPanel.revalidate();
