@@ -1,1 +1,6 @@
 bin/ 
+
+# Ignore compiled output
+bin/
+*.class
+
