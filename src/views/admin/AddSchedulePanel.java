@@ -26,15 +26,15 @@ import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingWorker;
 import javax.swing.table.DefaultTableModel;
-
 import models.Bus;
 import models.Route;
 import models.Schedule;
 
+// Admin-facing panel that lets staff create, edit, and delete bus schedules while keeping UI selections in sync.
 public class AddSchedulePanel extends JPanel {
     private JComboBox<String> busCombo, routeCombo;
     private JTextField departureDateField, priceField;
-    private JButton loadDataBtn, addBtn, clearBtn, refreshBtn;
+    private JButton loadDataBtn, addBtn, updateBtn, deleteBtn, clearBtn, refreshBtn;
     private JTable scheduleTable;
     private final DefaultTableModel tableModel;
     
@@ -88,9 +88,13 @@ public class AddSchedulePanel extends JPanel {
         JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         buttonRow.setOpaque(false);
         addBtn = new JButton("Add Schedule");
+        updateBtn = new JButton("Update");
+        deleteBtn = new JButton("Delete");
         clearBtn = new JButton("Clear");
         refreshBtn = new JButton("Refresh");
         buttonRow.add(addBtn);
+        buttonRow.add(updateBtn);
+        buttonRow.add(deleteBtn);
         buttonRow.add(clearBtn);
         buttonRow.add(refreshBtn);
         gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2;
@@ -115,11 +119,17 @@ public class AddSchedulePanel extends JPanel {
 
         loadDataBtn.addActionListener(e -> loadLists());
         addBtn.addActionListener(e -> createSchedule());
+        updateBtn.addActionListener(e -> updateSchedule());
+        deleteBtn.addActionListener(e -> deleteSchedule());
         clearBtn.addActionListener(e -> clearSelection());
         refreshBtn.addActionListener(e -> loadSchedules());
+
+        // Populate initial lists and table
+        loadLists();
     }
 
     private void loadLists() {
+        // Refresh bus/route dropdowns off the EDT to avoid freezing the UI, then reload schedules with the new context.
         new SwingWorker<Void, Void>() {
             @Override
             protected Void doInBackground() {
@@ -181,6 +191,91 @@ public class AddSchedulePanel extends JPanel {
         }
     }
 
+    private void updateSchedule() {
+        if (selectedSchedule == null) {
+            JOptionPane.showMessageDialog(this, "Select a schedule to update.");
+            return;
+        }
+
+        try {
+            if (busCombo.getSelectedIndex() < 0 || routeCombo.getSelectedIndex() < 0) {
+                JOptionPane.showMessageDialog(this, "Please select Bus and Route.");
+                return;
+            }
+
+            Bus selectedBus = buses.get(busCombo.getSelectedIndex());
+            Route selectedRoute = routes.get(routeCombo.getSelectedIndex());
+            LocalDateTime departure = LocalDateTime.parse(departureDateField.getText(),
+                    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+            LocalDateTime arrival = departure.plusHours(4);
+            BigDecimal price = new BigDecimal(priceField.getText());
+
+            Schedule updated = new Schedule(selectedSchedule.getId(), selectedBus, selectedRoute, departure, arrival, price);
+            // Preserve current available seats to avoid wiping bookings
+            updated.setAvailableSeats(selectedSchedule.getAvailableSeats());
+
+            new SwingWorker<Boolean, Void>() {
+                @Override
+                protected Boolean doInBackground() {
+                    return ScheduleController.getInstance().updateSchedule(updated);
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        if (get()) {
+                            JOptionPane.showMessageDialog(AddSchedulePanel.this, "Schedule updated.");
+                            clearSelection();
+                            loadSchedules();
+                        } else {
+                            JOptionPane.showMessageDialog(AddSchedulePanel.this, "Update failed. Please try again.");
+                        }
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(AddSchedulePanel.this, "Failed to update schedule: " + ex.getMessage());
+                    }
+                }
+            }.execute();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Error: Check date/price format. " + ex.getMessage());
+        }
+    }
+
+    private void deleteSchedule() {
+        if (selectedSchedule == null) {
+            JOptionPane.showMessageDialog(this, "Select a schedule to delete.");
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "Delete schedule ID " + selectedSchedule.getId() + "?",
+                "Confirm Delete", JOptionPane.YES_NO_OPTION);
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        new SwingWorker<Boolean, Void>() {
+            @Override
+            protected Boolean doInBackground() {
+                return ScheduleController.getInstance().deleteSchedule(selectedSchedule.getId());
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    if (get()) {
+                        JOptionPane.showMessageDialog(AddSchedulePanel.this, "Schedule deleted.");
+                        clearSelection();
+                        loadSchedules();
+                    } else {
+                        JOptionPane.showMessageDialog(AddSchedulePanel.this, "Delete failed. Please try again.");
+                    }
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(AddSchedulePanel.this, "Failed to delete schedule: " + ex.getMessage());
+                }
+            }
+        }.execute();
+    }
+
     private void clearSelection() {
         selectedSchedule = null;
         departureDateField.setText(LocalDateTime.now().plusDays(1)
@@ -189,16 +284,37 @@ public class AddSchedulePanel extends JPanel {
         busCombo.setSelectedIndex(-1);
         routeCombo.setSelectedIndex(-1);
         scheduleTable.clearSelection();
+        updateBtn.setEnabled(false);
+        deleteBtn.setEnabled(false);
     }
 
     private void syncSelectionFromTable() {
         int selectedRow = scheduleTable.getSelectedRow();
         if (selectedRow >= 0 && selectedRow < schedules.size()) {
             selectedSchedule = schedules.get(selectedRow);
-            // Populate UI with selected schedule data (read-only for now)
             departureDateField.setText(selectedSchedule.getDepartureTime()
                     .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
             priceField.setText(selectedSchedule.getTicketPrice().toString());
+
+            // Set combo selections to match the selected schedule
+            if (buses != null) {
+                for (int i = 0; i < buses.size(); i++) {
+                    if (buses.get(i).getId().equals(selectedSchedule.getBus().getId())) {
+                        busCombo.setSelectedIndex(i);
+                        break;
+                    }
+                }
+            }
+            if (routes != null) {
+                for (int i = 0; i < routes.size(); i++) {
+                    if (routes.get(i).getId().equals(selectedSchedule.getRoute().getId())) {
+                        routeCombo.setSelectedIndex(i);
+                        break;
+                    }
+                }
+            }
+            updateBtn.setEnabled(true);
+            deleteBtn.setEnabled(true);
         }
     }
 

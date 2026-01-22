@@ -200,6 +200,21 @@ public class ScheduleController {
         }
     }
 
+    // Delete schedules tied to a specific route
+    public int deleteSchedulesByRoute(Long routeId) {
+        String sql = "DELETE FROM schedules WHERE route_id = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setLong(1, routeId);
+            return stmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return -1;
+        }
+    }
+
     public boolean updateSchedule(Schedule schedule) {
         if (schedule.getId() == null) {
             System.err.println("Schedule ID is required to update a record.");

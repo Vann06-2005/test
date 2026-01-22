@@ -20,6 +20,40 @@ public class BookingController {
         return instance;
     }
 
+    // Count bookings tied to any schedule on a given route
+    public int countBookingsByRoute(Long routeId) {
+        String sql = "SELECT COUNT(*) AS cnt FROM bookings WHERE schedule_id IN (SELECT id FROM schedules WHERE route_id = ?)";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setLong(1, routeId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("cnt");
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return -1;
+    }
+
+    // Remove bookings tied to any schedule on a given route
+    public int deleteBookingsByRoute(Long routeId) {
+        String sql = "DELETE FROM bookings WHERE schedule_id IN (SELECT id FROM schedules WHERE route_id = ?)";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setLong(1, routeId);
+            return stmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return -1;
+        }
+    }
+
     public boolean createBooking(Booking booking) {
         String insertBookingSql = "INSERT INTO bookings (user_id, schedule_id, seat_number, status, total_amount, booking_date) VALUES (?, ?, ?, ?, ?, ?)";
         String updateScheduleSql = "UPDATE schedules SET available_seats = available_seats - 1 WHERE id = ? AND available_seats > 0";

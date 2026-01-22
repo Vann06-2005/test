@@ -1,15 +1,14 @@
 package views;
 
 import controllers.BookingController;
-import models.Booking;
-import models.User;
-import javax.swing.*;
-import javax.swing.border.EmptyBorder;
-// import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 import java.text.NumberFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import models.Booking;
+import models.User;
 
 public class HistoryPanel extends JPanel {
     private User currentUser;
@@ -18,6 +17,7 @@ public class HistoryPanel extends JPanel {
     private JLabel emptyLabel;
     private final DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private final NumberFormat currencyFmt = NumberFormat.getCurrencyInstance();
+    private static final int CARD_HEIGHT = 110;
 
     public HistoryPanel(User user) {
         this.currentUser = user;
@@ -57,6 +57,7 @@ public class HistoryPanel extends JPanel {
         
         refreshBtn.addActionListener(e -> loadHistory());
     }
+    
     
     @Override
     public void addNotify() {
@@ -103,6 +104,10 @@ public class HistoryPanel extends JPanel {
                 BorderFactory.createLineBorder(new Color(220, 225, 232)),
                 new EmptyBorder(10, 12, 10, 12)
         ));
+        card.setPreferredSize(new Dimension(0, CARD_HEIGHT));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, CARD_HEIGHT));
+        card.setMinimumSize(new Dimension(0, CARD_HEIGHT));
+        card.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JPanel topRow = new JPanel(new BorderLayout());
         topRow.setOpaque(false);

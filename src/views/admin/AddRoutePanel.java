@@ -1,5 +1,6 @@
 package views.admin;
 
+import controllers.BookingController;
 import controllers.RouteController;
 import controllers.ScheduleController;
 import java.awt.BorderLayout;
@@ -72,27 +73,31 @@ public class AddRoutePanel extends JPanel {
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.weightx = 1.0;
 
-        gbc.gridx = 0; gbc.gridy = 0;
+        gbc.gridx = 0;
+        gbc.gridy = 0;
         formPanel.add(new JLabel("Source City:"), gbc);
         srcField = new JComboBox<>(CAMBODIA_PROVINCES);
         srcField.setSelectedIndex(-1);
         gbc.gridx = 1;
         formPanel.add(srcField, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 1;
+        gbc.gridx = 0;
+        gbc.gridy = 1;
         formPanel.add(new JLabel("Destination City:"), gbc);
         dstField = new JComboBox<>(CAMBODIA_PROVINCES);
         dstField.setSelectedIndex(-1);
         gbc.gridx = 1;
         formPanel.add(dstField, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 2;
+        gbc.gridx = 0;
+        gbc.gridy = 2;
         formPanel.add(new JLabel("Distance (km):"), gbc);
         distField = new JTextField();
         gbc.gridx = 1;
         formPanel.add(distField, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 3;
+        gbc.gridx = 0;
+        gbc.gridy = 3;
         formPanel.add(new JLabel("Duration (e.g., 4h 30m):"), gbc);
         durField = new JTextField();
         gbc.gridx = 1;
@@ -112,14 +117,18 @@ public class AddRoutePanel extends JPanel {
         buttonRow.add(deleteBtn);
         buttonRow.add(clearBtn);
         buttonRow.add(refreshBtn);
-        gbc.gridx = 0; gbc.gridy = 4; gbc.gridwidth = 2;
+        gbc.gridx = 0;
+        gbc.gridy = 4;
+        gbc.gridwidth = 2;
         formPanel.add(buttonRow, gbc);
-
         add(formPanel, BorderLayout.NORTH);
 
-        tableModel = new DefaultTableModel(new Object[]{"ID", "Source", "Destination", "Distance (km)", "Duration"}, 0) {
+        tableModel = new DefaultTableModel(new Object[] { "ID", "Source", "Destination", "Distance (km)", "Duration" },
+                0) {
             @Override
-            public boolean isCellEditable(int row, int column) { return false; }
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
         };
         routeTable = new JTable(tableModel);
         routeTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -154,18 +163,40 @@ public class AddRoutePanel extends JPanel {
             }
 
             Route r = new Route(null, src, dst, dist, dur);
-            new SwingWorker<Void, Void>() {
+            new SwingWorker<Boolean, Void>() {
+                private boolean duplicate;
+
                 @Override
-                protected Void doInBackground() {
-                    RouteController.getInstance().addRoute(r);
-                    return null;
+                protected Boolean doInBackground() {
+                    RouteController controller = RouteController.getInstance();
+                    duplicate = controller.routeExists(src, dst);
+                    if (duplicate)
+                        return false;
+                    return controller.addRoute(r);
                 }
 
                 @Override
                 protected void done() {
-                    JOptionPane.showMessageDialog(AddRoutePanel.this, "Route Added!");
-                    clearSelection();
-                    loadRoutes();
+                    try {
+                        boolean added = get();
+                        if (duplicate) {
+                            JOptionPane.showMessageDialog(AddRoutePanel.this,
+                                    "This route already exists.",
+                                    "Duplicate Route",
+                                    JOptionPane.WARNING_MESSAGE);
+                            return;
+                        }
+
+                        if (added) {
+                            JOptionPane.showMessageDialog(AddRoutePanel.this, "Route Added!");
+                            clearSelection();
+                            loadRoutes();
+                        } else {
+                            JOptionPane.showMessageDialog(AddRoutePanel.this, "Unable to add route. Please try again.");
+                        }
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(AddRoutePanel.this, "Failed to add route: " + ex.getMessage());
+                    }
                 }
             }.execute();
         } catch (NumberFormatException ex) {
@@ -178,7 +209,65 @@ public class AddRoutePanel extends JPanel {
             JOptionPane.showMessageDialog(this, "Select a route to update.");
             return;
         }
-        JOptionPane.showMessageDialog(this, "Update not implemented. Routes are immutable.");
+
+        try {
+            String src = (String) srcField.getSelectedItem();
+            String dst = (String) dstField.getSelectedItem();
+            double dist = Double.parseDouble(distField.getText().trim());
+            String dur = durField.getText().trim();
+
+            if (src == null || dst == null || dur.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please fill all fields.");
+                return;
+            }
+
+            Long routeId = selectedRoute.getId();
+            if (routeId == null) {
+                JOptionPane.showMessageDialog(this, "Selected route has no ID.");
+                return;
+            }
+
+            Route updated = new Route(routeId, src, dst, dist, dur);
+
+            new SwingWorker<Boolean, Void>() {
+                private boolean duplicate;
+
+                @Override
+                protected Boolean doInBackground() {
+                    RouteController controller = RouteController.getInstance();
+                    duplicate = controller.routeExists(src, dst, routeId);
+                    if (duplicate)
+                        return false;
+                    return controller.updateRoute(updated);
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        boolean updatedOk = get();
+                        if (duplicate) {
+                            JOptionPane.showMessageDialog(AddRoutePanel.this,
+                                    "Another route with the same source and destination already exists.",
+                                    "Duplicate Route",
+                                    JOptionPane.WARNING_MESSAGE);
+                            return;
+                        }
+
+                        if (updatedOk) {
+                            JOptionPane.showMessageDialog(AddRoutePanel.this, "Route updated.");
+                            clearSelection();
+                            loadRoutes();
+                        } else {
+                            JOptionPane.showMessageDialog(AddRoutePanel.this, "Update failed. Please try again.");
+                        }
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(AddRoutePanel.this, "Failed to update route: " + ex.getMessage());
+                    }
+                }
+            }.execute();
+        } catch (NumberFormatException ex) {
+            JOptionPane.showMessageDialog(this, "Invalid distance. Please enter a number.");
+        }
     }
 
     private void handleDelete() {
@@ -192,79 +281,99 @@ public class AddRoutePanel extends JPanel {
             return;
         }
 
-        int scheduleCount = ScheduleController.getInstance().countSchedulesByRoute(selectedRoute.getId());
+        final int scheduleCount = ScheduleController.getInstance().countSchedulesByRoute(selectedRoute.getId());
         if (scheduleCount < 0) {
             JOptionPane.showMessageDialog(this, "Unable to check schedules for this route. Please try again.");
             return;
         }
 
-        if (scheduleCount > 0) {
-            Route replacementRoute = promptForReplacementRoute(scheduleCount);
-            if (replacementRoute == null) {
-                return;
-            }
-
-            String replacementLabel = formatRouteLabel(replacementRoute);
-            int confirm = JOptionPane.showConfirmDialog(this,
-                    "Move " + scheduleCount + " schedule(s) to " + replacementLabel + " and delete this route?",
-                    "Confirm Reassign and Delete", JOptionPane.YES_NO_OPTION);
-            if (confirm != JOptionPane.YES_OPTION) {
-                return;
-            }
-
-            Long routeId = selectedRoute.getId();
-            Long replacementId = replacementRoute.getId();
-            new SwingWorker<Boolean, Void>() {
-                private int reassignedCount;
-
-                @Override
-                protected Boolean doInBackground() {
-                    reassignedCount = ScheduleController.getInstance()
-                            .reassignSchedulesToRoute(routeId, replacementId);
-                    if (reassignedCount < 0) {
-                        return false;
-                    }
-                    return RouteController.getInstance().deleteRoute(routeId);
-                }
-
-                @Override
-                protected void done() {
-                    try {
-                        if (get()) {
-                            JOptionPane.showMessageDialog(AddRoutePanel.this,
-                                    "Route deleted. " + reassignedCount + " schedule(s) moved to " + replacementLabel + ".");
-                            clearSelection();
-                            loadRoutes();
-                        } else {
-                            JOptionPane.showMessageDialog(AddRoutePanel.this,
-                                    "Delete failed. Unable to move schedules or remove the route.");
-                        }
-                    } catch (Exception ex) {
-                        JOptionPane.showMessageDialog(AddRoutePanel.this, "Error deleting route: " + ex.getMessage());
-                    }
-                }
-            }.execute();
+        final int bookingCount = BookingController.getInstance().countBookingsByRoute(selectedRoute.getId());
+        if (bookingCount < 0) {
+            JOptionPane.showMessageDialog(this, "Unable to check bookings for this route. Please try again.");
             return;
         }
 
-        int choice = JOptionPane.showConfirmDialog(this,
-                "Delete route " + selectedRoute.getSourceCity() + " -> " + selectedRoute.getDestinationCity() + "?",
-                "Confirm Delete", JOptionPane.YES_NO_OPTION);
-        if (choice != JOptionPane.YES_OPTION) return;
+        final Long routeId = selectedRoute.getId();
+        final String routeLabel = selectedRoute.getSourceCity() + " -> " + selectedRoute.getDestinationCity();
+        StringBuilder messageBuilder = new StringBuilder("Delete route " + routeLabel);
+        if (scheduleCount > 0 || bookingCount > 0) {
+            messageBuilder.append(" and remove ");
+            if (scheduleCount > 0) {
+                messageBuilder.append(scheduleCount).append(" schedule(s)");
+            }
+            if (bookingCount > 0) {
+                if (scheduleCount > 0) {
+                    messageBuilder.append(" and ");
+                }
+                messageBuilder.append(bookingCount).append(" booking(s)");
+            }
+            messageBuilder.append(" linked to it?");
+            if (scheduleCount > 0) {
+                messageBuilder.append("\nAll schedules from ").append(routeLabel).append(" will be removed.");
+            }
+            if (bookingCount > 0) {
+                messageBuilder.append("\nAll bookings on those schedules will be removed.");
+            }
+        } else {
+            messageBuilder.append("?");
+        }
+        String message = messageBuilder.toString();
+        int messageType = (scheduleCount > 0 || bookingCount > 0)
+                ? JOptionPane.WARNING_MESSAGE
+                : JOptionPane.QUESTION_MESSAGE;
+
+        int choice = JOptionPane.showConfirmDialog(this, message, "Confirm Delete",
+                JOptionPane.YES_NO_OPTION, messageType);
+        if (choice != JOptionPane.YES_OPTION) {
+            return;
+        }
 
         new SwingWorker<Boolean, Void>() {
+            private int deletedSchedules;
+            private int deletedBookings;
+            private boolean scheduleDeleteFailed;
+            private boolean bookingDeleteFailed;
+
             @Override
             protected Boolean doInBackground() {
-                return RouteController.getInstance().deleteRoute(selectedRoute.getId());
+                if (bookingCount > 0) {
+                    deletedBookings = BookingController.getInstance().deleteBookingsByRoute(routeId);
+                    if (deletedBookings < 0) {
+                        bookingDeleteFailed = true;
+                        return false;
+                    }
+                }
+                if (scheduleCount > 0) {
+                    deletedSchedules = ScheduleController.getInstance().deleteSchedulesByRoute(routeId);
+                    if (deletedSchedules < 0) {
+                        scheduleDeleteFailed = true;
+                        return false;
+                    }
+                }
+                return RouteController.getInstance().deleteRoute(routeId);
             }
 
             @Override
             protected void done() {
                 try {
                     if (get()) {
-                        JOptionPane.showMessageDialog(AddRoutePanel.this, "Route deleted.");
+                        StringBuilder success = new StringBuilder("Route deleted.");
+                        if (bookingCount > 0) {
+                            success.append(" ").append(deletedBookings).append(" booking(s) removed.");
+                        }
+                        if (scheduleCount > 0) {
+                            success.append(" ").append(deletedSchedules)
+                                    .append(" schedule(s) removed from ").append(routeLabel).append(".");
+                        }
+                        JOptionPane.showMessageDialog(AddRoutePanel.this, success.toString());
                         clearSelection();
                         loadRoutes();
+                    } else if (bookingDeleteFailed) {
+                        JOptionPane.showMessageDialog(AddRoutePanel.this,
+                                "Delete failed. Unable to remove bookings for this route.");
+                    } else if (scheduleDeleteFailed) {
+                        JOptionPane.showMessageDialog(AddRoutePanel.this,
+                                "Delete failed. Unable to remove schedules for this route.");
                     } else {
                         JOptionPane.showMessageDialog(AddRoutePanel.this, "Delete failed. Please try again.");
                     }
@@ -273,47 +382,6 @@ public class AddRoutePanel extends JPanel {
                 }
             }
         }.execute();
-    }
-    //
-    private Route promptForReplacementRoute(int scheduleCount) {
-        if (routes == null || routes.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "No routes are available to replace this one.");
-            return null;
-        }
-
-        List<Route> candidates = new ArrayList<>();
-        for (Route route : routes) {
-            if (route.getId() != null && !route.getId().equals(selectedRoute.getId())) {
-                candidates.add(route);
-            }
-        }
-
-        if (candidates.isEmpty()) {
-            JOptionPane.showMessageDialog(this,
-                    "This route is linked to " + scheduleCount + " schedule(s). Create another route before deleting.");
-            return null;
-        }
-
-        String[] labels = new String[candidates.size()];
-        for (int i = 0; i < candidates.size(); i++) {
-            labels[i] = formatRouteLabel(candidates.get(i));
-        }
-
-        JComboBox<String> replacementBox = new JComboBox<>(labels);
-        JPanel panel = new JPanel(new BorderLayout(0, 8));
-        panel.add(new JLabel("This route is linked to " + scheduleCount + " schedule(s). Choose a new route:"), BorderLayout.NORTH);
-        panel.add(replacementBox, BorderLayout.CENTER);
-
-        int choice = JOptionPane.showConfirmDialog(this, panel, "Reassign Schedules",
-                JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
-        if (choice != JOptionPane.OK_OPTION) {
-            return null;
-        }
-        return candidates.get(replacementBox.getSelectedIndex());
-    }
-
-    private String formatRouteLabel(Route route) {
-        return "ID " + route.getId() + ": " + route.getSourceCity() + " -> " + route.getDestinationCity();
     }
 
     private void syncSelectionFromTable() {
@@ -354,7 +422,7 @@ public class AddRoutePanel extends JPanel {
                     tableModel.setRowCount(0);
                     if (routes != null) {
                         for (Route route : routes) {
-                            tableModel.addRow(new Object[]{
+                            tableModel.addRow(new Object[] {
                                     route.getId(),
                                     route.getSourceCity(),
                                     route.getDestinationCity(),

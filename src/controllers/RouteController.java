@@ -20,33 +20,71 @@ public class RouteController {
         return instance;
     }
 
-    public void addRoute(Route route) {
+    public boolean addRoute(Route route) {
+        // Prevent duplicate routes with the same source/destination pair (case-insensitive)
+        if (routeExists(route.getSourceCity(), route.getDestinationCity())) {
+            System.out.println("Route already exists: " + route.getSourceCity() + " -> " + route.getDestinationCity());
+            return false;
+        }
+
         String sql = "INSERT INTO routes (source_city, destination_city, distance_km, estimated_duration) VALUES (?, ?, ?, ?)";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+
             stmt.setString(1, route.getSourceCity());
             stmt.setString(2, route.getDestinationCity());
             stmt.setDouble(3, route.getDistanceKm());
             stmt.setString(4, route.getEstimatedDuration());
-            
+
             stmt.executeUpdate();
             System.out.println("Route added: " + route.getSourceCity() + " -> " + route.getDestinationCity());
-            
+            return true;
+
         } catch (SQLException e) {
             e.printStackTrace();
+            return false;
+        }
+    }
+
+    public boolean routeExists(String source, String destination) {
+        return routeExists(source, destination, null);
+    }
+
+    public boolean routeExists(String source, String destination, Long excludeRouteId) {
+        StringBuilder sql = new StringBuilder(
+                "SELECT 1 FROM routes WHERE LOWER(source_city) = LOWER(?) AND LOWER(destination_city) = LOWER(?)");
+        if (excludeRouteId != null) {
+            sql.append(" AND id <> ?");
+        }
+        sql.append(" LIMIT 1");
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
+
+            stmt.setString(1, source);
+            stmt.setString(2, destination);
+            if (excludeRouteId != null) {
+                stmt.setLong(3, excludeRouteId);
+            }
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
         }
     }
 
     public List<Route> getAllRoutes() {
         List<Route> routes = new ArrayList<>();
         String sql = "SELECT * FROM routes";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql);
              ResultSet rs = stmt.executeQuery()) {
-            
+
             while (rs.next()) {
                 routes.add(new Route(
                     rs.getLong("id"),
@@ -64,13 +102,13 @@ public class RouteController {
 
     public Route getRouteById(Long id) {
         String sql = "SELECT * FROM routes WHERE id = ?";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+
             stmt.setLong(1, id);
             ResultSet rs = stmt.executeQuery();
-            
+
             if (rs.next()) {
                 return new Route(
                     rs.getLong("id"),

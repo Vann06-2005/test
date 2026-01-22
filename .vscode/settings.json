@@ -1,0 +1,9 @@
+{
+  "java.project.referencedLibraries": {
+    "include": [
+      "lib/**/*.jar",
+      "/home/vannara/Downloads/postgresql-42.7.9.jar"
+    ],
+    "exclude": ["lib/postgresql-42.7.8.jar"]
+  }
+}

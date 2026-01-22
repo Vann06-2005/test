@@ -2,25 +2,27 @@ package views;
 
 import controllers.BookingController;
 import controllers.ScheduleController;
+import java.awt.*;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import models.Booking;
 import models.Schedule;
 import models.User;
 
-import javax.swing.*;
-import javax.swing.border.EmptyBorder;
-import java.awt.*;
-import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
-
 public class CustomerViews extends JPanel {
     private Login loginApp;
     private User currentUser;
-    
+
     // UI Components
     private JComboBox<String> fromCombo, toCombo; // Dropdowns for user-friendly city selection
+    private JSpinner travelDateSpinner;
     private JPanel resultsListPanel; // Container for the cards
     private JButton searchBtn, historyBtn;
     private static final String SELECT_CITY = "Select City";
@@ -28,7 +30,7 @@ public class CustomerViews extends JPanel {
     public CustomerViews(Login app, User user) {
         this.loginApp = app;
         this.currentUser = user;
-        
+
         setLayout(new BorderLayout());
         setBackground(Color.WHITE);
 
@@ -43,10 +45,10 @@ public class CustomerViews extends JPanel {
         header.setBackground(Color.WHITE);
         JLabel title = new JLabel("Hello, " + user.getFullName());
         title.setFont(new Font("SansSerif", Font.BOLD, 18));
-        
+
         JButton logoutBtn = new JButton("Logout");
         logoutBtn.addActionListener(e -> loginApp.logout());
-        
+
         header.add(title, BorderLayout.WEST);
         header.add(logoutBtn, BorderLayout.EAST);
         topPanel.add(header);
@@ -61,12 +63,17 @@ public class CustomerViews extends JPanel {
         topPanel.add(createInputLabel("To Destination:"));
         toCombo = createStyledComboBox();
         topPanel.add(toCombo);
+        topPanel.add(Box.createVerticalStrut(10));
+
+        topPanel.add(createInputLabel("Travel Date:"));
+        travelDateSpinner = createDateSpinner();
+        topPanel.add(travelDateSpinner);
         topPanel.add(Box.createVerticalStrut(20));
 
         // 3. Action Buttons (Search & History)
         JPanel buttonRow = new JPanel(new GridLayout(1, 2, 10, 0)); // 2 columns, 10px gap
         buttonRow.setBackground(Color.WHITE);
-        
+
         searchBtn = new JButton("Search Buses");
         searchBtn.setBackground(new Color(50, 150, 250));
         searchBtn.setForeground(Color.WHITE);
@@ -81,19 +88,19 @@ public class CustomerViews extends JPanel {
         buttonRow.add(searchBtn);
         buttonRow.add(historyBtn);
         topPanel.add(buttonRow);
-        
+
         add(topPanel, BorderLayout.NORTH);
 
         // --- BOTTOM SECTION: Scrollable Results ---
         resultsListPanel = new JPanel();
         resultsListPanel.setLayout(new BoxLayout(resultsListPanel, BoxLayout.Y_AXIS));
         resultsListPanel.setBackground(new Color(245, 245, 245)); // Light gray background for list
-        
+
         // Wrap it in a ScrollPane
         JScrollPane scrollPane = new JScrollPane(resultsListPanel);
         scrollPane.setBorder(null);
         scrollPane.getVerticalScrollBar().setUnitIncrement(16); // Smooth scrolling
-        
+
         add(scrollPane, BorderLayout.CENTER);
 
         // --- ACTIONS ---
@@ -111,13 +118,24 @@ public class CustomerViews extends JPanel {
         combo.setFont(new Font("SansSerif", Font.PLAIN, 16));
         return combo;
     }
-    
+    //
     private JLabel createInputLabel(String text) {
         JLabel l = new JLabel(text);
         l.setFont(new Font("SansSerif", Font.PLAIN, 12));
         l.setForeground(Color.GRAY);
         l.setAlignmentX(Component.LEFT_ALIGNMENT);
         return l;
+    }
+
+    // load the date
+    private JSpinner createDateSpinner() {
+        SpinnerDateModel model = new SpinnerDateModel(new Date(), null, null, Calendar.DAY_OF_MONTH);
+        JSpinner spinner = new JSpinner(model);
+        spinner.setFont(new Font("SansSerif", Font.PLAIN, 16));
+        spinner.setEditor(new JSpinner.DateEditor(spinner, "dd MMM yyyy"));
+        spinner.setPreferredSize(new Dimension(999, 40));
+        spinner.setMaximumSize(new Dimension(999, 40));
+        return spinner;
     }
 
     // Load unique cities to keep dropdown options consistent with the database
@@ -162,11 +180,11 @@ public class CustomerViews extends JPanel {
             JOptionPane.showMessageDialog(this, "Please select both departure and destination.");
             return;
         }
-        
+
         resultsListPanel.removeAll(); // Clear old results
         resultsListPanel.revalidate();
         resultsListPanel.repaint();
-        
+
         searchBtn.setEnabled(false);
         searchBtn.setText("Searching...");
 
@@ -182,7 +200,7 @@ public class CustomerViews extends JPanel {
                     List<Schedule> results = get();
                     if (results.isEmpty()) {
                         JLabel noData = new JLabel("No buses found.", SwingConstants.CENTER);
-                        noData.setBorder(new EmptyBorder(20,0,0,0));
+                        noData.setBorder(new EmptyBorder(20, 0, 0, 0));
                         resultsListPanel.add(noData);
                     } else {
                         // Create a "Card" for each result using the external BusCardPanel class
@@ -207,35 +225,40 @@ public class CustomerViews extends JPanel {
     // --- LOGIC: BOOKING ---
     private void initiateBooking(Schedule schedule) {
         int totalSeats = schedule.getBus().getTotalSeats();
-        
+
         new SwingWorker<List<String>, Void>() {
             @Override
             protected List<String> doInBackground() {
                 return BookingController.getInstance().getTakenSeats(schedule.getId());
             }
+
             @Override
             protected void done() {
                 try {
                     List<String> taken = get();
                     StringBuilder msg = new StringBuilder("Enter Seat (1-" + totalSeats + "):\n");
-                    if(!taken.isEmpty()) msg.append("Taken: ").append(String.join(", ", taken));
-                    
+                    if (!taken.isEmpty())
+                        msg.append("Taken: ").append(String.join(", ", taken));
+
                     String input = JOptionPane.showInputDialog(CustomerViews.this, msg.toString());
-                    if(input != null && !input.trim().isEmpty()) {
-                         // Check number format first
+                    if (input != null && !input.trim().isEmpty()) {
+                        // Check number format first
                         try {
                             int seatNum = Integer.parseInt(input.trim());
                             if (seatNum < 1 || seatNum > totalSeats) {
                                 JOptionPane.showMessageDialog(CustomerViews.this, "Invalid Seat Number!");
                                 return;
                             }
-                            Booking newBooking = new Booking(null, currentUser, schedule, String.valueOf(seatNum), schedule.getTicketPrice());
+                            Booking newBooking = new Booking(null, currentUser, schedule, String.valueOf(seatNum),
+                                    schedule.getTicketPrice());
                             performBooking(newBooking);
                         } catch (NumberFormatException nfe) {
                             JOptionPane.showMessageDialog(CustomerViews.this, "Please enter a number.");
                         }
                     }
-                } catch(Exception ex) { ex.printStackTrace(); }
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
             }
         }.execute();
     }
@@ -247,6 +270,7 @@ public class CustomerViews extends JPanel {
             protected Boolean doInBackground() {
                 return BookingController.getInstance().createBooking(newBooking);
             }
+
             @Override
             protected void done() {
                 try {
@@ -256,7 +280,9 @@ public class CustomerViews extends JPanel {
                     } else {
                         JOptionPane.showMessageDialog(CustomerViews.this, "Booking Failed (Seat Taken).");
                     }
-                } catch (Exception e) { e.printStackTrace(); }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }.execute();
     }
