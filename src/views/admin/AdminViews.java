@@ -51,13 +51,13 @@ public class AdminViews extends JPanel {
         tabs.addTab("Manage Buses", new ManageBusesPanel());
         tabs.addTab("Add Route", new AddRoutePanel());
         tabs.addTab("Add Schedule", new AddSchedulePanel());
+        tabs.addTab("Manage Bookings", new ManageBookingsPanel());
 
         JPanel contentPanel = new JPanel(new BorderLayout());
         contentPanel.setBackground(Color.WHITE);
         contentPanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(210, 215, 225), 1),
-                BorderFactory.createEmptyBorder(20, 20, 20, 20)
-        ));
+                BorderFactory.createEmptyBorder(20, 20, 20, 20)));
         contentPanel.add(tabs, BorderLayout.CENTER);
 
         add(contentPanel, BorderLayout.CENTER);
