@@ -1,4 +1,7 @@
 package views.admin;
+
+import controllers.BookingController;
+import controllers.UserController;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.FlowLayout;
@@ -7,15 +10,17 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingWorker;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
-import controllers.BookingController;
-import controllers.UserController;
 import models.Booking;
 import models.Schedule;
 
@@ -24,16 +29,21 @@ public class ManageBookingsPanel extends JPanel {
     private final DefaultTableModel tableModel;
     private final JTable bookingTable;
     private final JButton loadAllBtn, refreshBtn, cancelBtn, deleteUserBtn;
+    private final JTextField searchField;
 
     private List<Booking> bookings = new ArrayList<>();
+    private List<Booking> visibleBookings = new ArrayList<>();
     private Booking selectedBooking;
 
     public ManageBookingsPanel() {
         setLayout(new BorderLayout(10, 10));
         setBackground(Color.WHITE);
-
+        // Buttons setup
         JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
         actionPanel.setOpaque(false);
+        actionPanel.add(new JLabel("Search (User ID or Name):"));
+        searchField = new JTextField(18);
+        actionPanel.add(searchField);
         loadAllBtn = new JButton("Load All");
         refreshBtn = new JButton("Refresh");
         cancelBtn = new JButton("Cancel Booking");
@@ -46,10 +56,9 @@ public class ManageBookingsPanel extends JPanel {
         actionPanel.add(deleteUserBtn);
 
         add(actionPanel, BorderLayout.NORTH);
-
+        // Table setup
         tableModel = new DefaultTableModel(
-                new Object[] { "ID", "User", "Route", "Bus", "Departure", "Seat", "Amount", "Status", "Booked At" },
-                0) {
+                new Object[] { "Booking ID", "User ID", "User", "Route", "Bus", "Departure", "Seat", "Amount", "Status", "Booked At" },0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
@@ -72,8 +81,20 @@ public class ManageBookingsPanel extends JPanel {
         cancelBtn.addActionListener(e -> handleCancel());
         deleteUserBtn.addActionListener(e -> handleDeleteUser());
 
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) { applyFilter(); }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) { applyFilter(); }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) { applyFilter(); }
+        });
+
         loadBookings();
     }
+    // Cancel booking part
 
     private void handleCancel() {
         if (selectedBooking == null) {
@@ -120,6 +141,7 @@ public class ManageBookingsPanel extends JPanel {
             }
         }.execute();
     }
+    // Delete user part
 
     private void handleDeleteUser() {
         if (selectedBooking == null || selectedBooking.getCustomer() == null) {
@@ -171,8 +193,8 @@ public class ManageBookingsPanel extends JPanel {
 
     private void syncSelectionFromTable() {
         int selectedRow = bookingTable.getSelectedRow();
-        if (selectedRow >= 0 && selectedRow < bookings.size()) {
-            selectedBooking = bookings.get(selectedRow);
+        if (selectedRow >= 0 && selectedRow < visibleBookings.size()) {
+            selectedBooking = visibleBookings.get(selectedRow);
             cancelBtn.setEnabled(!"CANCELLED".equalsIgnoreCase(selectedBooking.getStatus()));
             deleteUserBtn.setEnabled(true);
         } else {
@@ -195,7 +217,7 @@ public class ManageBookingsPanel extends JPanel {
             protected void done() {
                 try {
                     bookings = get();
-                    populateTable();
+                    applyFilter();
                 } catch (Exception e) {
                     JOptionPane.showMessageDialog(ManageBookingsPanel.this,
                             "Error loading bookings: " + e.getMessage());
@@ -204,19 +226,20 @@ public class ManageBookingsPanel extends JPanel {
         }.execute();
     }
 
-    private void populateTable() {
+    private void populateTable(List<Booking> source) {
         tableModel.setRowCount(0);
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-        if (bookings == null) {
+        if (source == null) {
             return;
         }
 
-        for (Booking booking : bookings) {
+        for (Booking booking : source) {
             Schedule schedule = booking.getSchedule();
             String routeLabel = schedule.getRoute().getSourceCity() + " -> "
                     + schedule.getRoute().getDestinationCity();
             tableModel.addRow(new Object[] {
                     booking.getId(),
+                    booking.getCustomer() != null ? booking.getCustomer().getId() : null,
                     booking.getCustomer().getFullName(),
                     routeLabel,
                     schedule.getBus().getBusNumber(),
@@ -227,5 +250,38 @@ public class ManageBookingsPanel extends JPanel {
                     booking.getBookingDate().format(fmt)
             });
         }
+    }
+
+    private void applyFilter() {
+        String term = searchField.getText() == null ? "" : searchField.getText().trim();
+        if (bookings == null) {
+            visibleBookings = new ArrayList<>();
+            populateTable(visibleBookings);
+            return;
+        }
+
+        if (term.isEmpty()) {
+            visibleBookings = new ArrayList<>(bookings);
+        } else if (term.chars().allMatch(Character::isDigit)) {
+            try {
+                long userId = Long.parseLong(term);
+                visibleBookings = bookings.stream()
+                        .filter(b -> b.getCustomer() != null
+                                && b.getCustomer().getId() != null
+                                && b.getCustomer().getId() == userId)
+                        .toList();
+            } catch (NumberFormatException ex) {
+                visibleBookings = new ArrayList<>();
+            }
+        } else {
+            String lower = term.toLowerCase();
+            visibleBookings = bookings.stream()
+                    .filter(b -> b.getCustomer() != null
+                            && b.getCustomer().getFullName() != null
+                            && b.getCustomer().getFullName().toLowerCase().contains(lower))
+                    .toList();
+        }
+
+        populateTable(visibleBookings);
     }
 }
