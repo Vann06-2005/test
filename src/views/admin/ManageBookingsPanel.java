@@ -253,7 +253,13 @@ public class ManageBookingsPanel extends JPanel {
     }
 
     private void applyFilter() {
-        String term = searchField.getText() == null ? "" : searchField.getText().trim();
+        String termText = searchField.getText();
+        if (termText == null) {
+            termText = "";
+        } else {
+            termText = termText.trim();
+        }
+        String term = termText;
         if (bookings == null) {
             visibleBookings = new ArrayList<>();
             populateTable(visibleBookings);
