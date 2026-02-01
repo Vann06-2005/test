@@ -6,8 +6,6 @@ import java.awt.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -23,7 +21,6 @@ public class CustomerViews extends JPanel {
 
     // UI Components
     private JComboBox<String> fromCombo, toCombo; // Dropdowns for user-friendly city selection
-    private JSpinner travelDateSpinner;
     private JPanel resultsListPanel; // Container for the cards
     private JButton searchBtn, historyBtn;
     private static final String SELECT_CITY = "Select City";
@@ -66,9 +63,6 @@ public class CustomerViews extends JPanel {
         topPanel.add(toCombo);
         topPanel.add(Box.createVerticalStrut(10));
 
-        topPanel.add(createInputLabel("Travel Date:"));
-        travelDateSpinner = createDateSpinner();
-        topPanel.add(travelDateSpinner);
         topPanel.add(Box.createVerticalStrut(20));
 
         // 3. Action Buttons (Search & History)
@@ -109,6 +103,7 @@ public class CustomerViews extends JPanel {
         historyBtn.addActionListener(e -> showHistoryPopup());
 
         loadCityOptions(); // Populate dropdowns from available schedules
+        showAvailableBuses(); // Fill empty space with available buses
     }
 
     // Helper to style inputs
@@ -126,17 +121,6 @@ public class CustomerViews extends JPanel {
         l.setForeground(Color.GRAY);
         l.setAlignmentX(Component.LEFT_ALIGNMENT);
         return l;
-    }
-
-    // load the date
-    private JSpinner createDateSpinner() {
-        SpinnerDateModel model = new SpinnerDateModel(new Date(), null, null, Calendar.DAY_OF_MONTH);
-        JSpinner spinner = new JSpinner(model);
-        spinner.setFont(new Font("SansSerif", Font.PLAIN, 16));
-        spinner.setEditor(new JSpinner.DateEditor(spinner, "dd MMM yyyy"));
-        spinner.setPreferredSize(new Dimension(999, 40));
-        spinner.setMaximumSize(new Dimension(999, 40));
-        return spinner;
     }
 
     // Load unique cities to keep dropdown options consistent with the database
@@ -172,6 +156,29 @@ public class CustomerViews extends JPanel {
         }.execute();
     }
 
+    private void showAvailableBuses() {
+        resultsListPanel.removeAll();
+        resultsListPanel.revalidate();
+        resultsListPanel.repaint();
+
+        new SwingWorker<List<Schedule>, Void>() {
+            @Override
+            protected List<Schedule> doInBackground() {
+                return ScheduleController.getInstance().getAllSchedules();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    List<Schedule> results = get();
+                    renderSchedules(results);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }.execute();
+    }
+
     // --- LOGIC: SEARCH & POPULATE CARDS ---
     private void performSearch() {
         String from = (String) fromCombo.getSelectedItem();
@@ -198,21 +205,7 @@ public class CustomerViews extends JPanel {
             @Override
             protected void done() {
                 try {
-                    List<Schedule> results = get();
-                    if (results.isEmpty()) {
-                        JLabel noData = new JLabel("No buses found.", SwingConstants.CENTER);
-                        noData.setBorder(new EmptyBorder(20, 0, 0, 0));
-                        resultsListPanel.add(noData);
-                    } else {
-                        // Create a "Card" for each result using the external BusCardPanel class
-                        for (Schedule s : results) {
-                            BusCardPanel card = new BusCardPanel(s, e -> initiateBooking(s));
-                            resultsListPanel.add(card);
-                            resultsListPanel.add(Box.createVerticalStrut(10)); // Gap between cards
-                        }
-                    }
-                    resultsListPanel.revalidate();
-                    resultsListPanel.repaint();
+                    renderSchedules(get());
                 } catch (Exception e) {
                     e.printStackTrace();
                 } finally {
@@ -221,6 +214,35 @@ public class CustomerViews extends JPanel {
                 }
             }
         }.execute();
+    }
+
+    private void renderSchedules(List<Schedule> schedules) {
+        resultsListPanel.removeAll();
+
+        List<Schedule> upcoming = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+        for (Schedule schedule : schedules) {
+            LocalDateTime departure = schedule.getDepartureTime();
+            if (departure == null || !departure.isBefore(now)) {
+                upcoming.add(schedule);
+            }
+        }
+
+        if (upcoming.isEmpty()) {
+            JLabel noData = new JLabel("No buses available.", SwingConstants.CENTER);
+            noData.setBorder(new EmptyBorder(20, 0, 0, 0));
+            resultsListPanel.add(noData);
+        } else {
+            // Create a "Card" for each result using the external BusCardPanel class
+            for (Schedule s : upcoming) {
+                BusCardPanel card = new BusCardPanel(s, e -> initiateBooking(s));
+                resultsListPanel.add(card);
+                resultsListPanel.add(Box.createVerticalStrut(10)); // Gap between cards
+            }
+        }
+
+        resultsListPanel.revalidate();
+        resultsListPanel.repaint();
     }
 
     // --- LOGIC: BOOKING ---

@@ -11,7 +11,6 @@ public class BookingController {
 
     private static BookingController instance; // Singleton Pattern
 
-
     private BookingController() {
     }
 
@@ -123,27 +122,26 @@ public class BookingController {
         }
     }
 
-   public List<String> getTakenSeats(Long scheduleId) {
-    List<String> takenSeats = new ArrayList<>();    
-    String sql = "SELECT seat_number FROM bookings WHERE schedule_id = ? AND status = 'CONFIRMED'";
+    public List<String> getTakenSeats(Long scheduleId) {
+        List<String> takenSeats = new ArrayList<>();
+        String sql = "SELECT seat_number FROM bookings WHERE schedule_id = ? AND status = 'CONFIRMED'";
 
-    try (Connection conn = DatabaseConnection.getConnection();
-         PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-        stmt.setLong(1, scheduleId);
-        try (ResultSet rs = stmt.executeQuery()) {
-            while (rs.next()) {
-                takenSeats.add(rs.getString("seat_number"));
+            stmt.setLong(1, scheduleId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    takenSeats.add(rs.getString("seat_number"));
+                }
             }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
 
-    } catch (SQLException e) {
-        e.printStackTrace();
+        return takenSeats;
     }
-
-    return takenSeats;
-}
-
 
     public List<Booking> getBookingsForUser(Long userId) {
         List<Booking> userBookings = new ArrayList<>();
@@ -271,7 +269,7 @@ public class BookingController {
         String deleteSql = "DELETE FROM bookings WHERE id = ? AND user_id = ? AND status = 'CANCELLED'";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(deleteSql)) {
+                PreparedStatement stmt = conn.prepareStatement(deleteSql)) {
 
             stmt.setLong(1, bookingId);
             stmt.setLong(2, userId);
@@ -296,8 +294,8 @@ public class BookingController {
                 "JOIN users u ON bk.user_id = u.id";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
+                PreparedStatement stmt = conn.prepareStatement(sql);
+                ResultSet rs = stmt.executeQuery()) {
 
             while (rs.next()) {
                 User user = new User(rs.getLong("user_id"), rs.getString("full_name"), rs.getString("password"),
@@ -344,7 +342,7 @@ public class BookingController {
                 "WHERE bk.id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setLong(1, bookingId);
             try (ResultSet rs = stmt.executeQuery()) {
